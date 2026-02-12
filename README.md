@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Local Document Research (Scaffold)
 
-## Getting Started
+This repository contains a local-first scaffold for:
 
-First, run the development server:
+- PDF ingestion and text extraction in browser (PDF.js)
+- Semantic indexing and retrieval (Ollama + Chroma)
+- Local app metadata (SQLite + Drizzle ORM)
+- Notes and highlights
+- Next.js Server Functions as the boundary for backend communication
+
+## Stack
+
+- Next.js (App Router) + React
+- shadcn-style component patterns with Radix primitives
+- PDF.js (`pdfjs-dist`)
+- Ollama (`embeddinggemma:latest`)
+- ChromaDB (`chromadb` client)
+- SQLite + Drizzle ORM (`better-sqlite3`, `drizzle-orm`)
+
+## Local Services
+
+Run these services locally before testing semantic indexing/search:
+
+1. Ollama at `http://127.0.0.1:11434`
+2. Chroma at `http://127.0.0.1:8000` (via Docker Compose)
+
+Start Chroma:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+docker compose -f compose.yml up -d
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Stop Chroma:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+docker compose -f compose.yml down
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment
 
-## Learn More
+Copy `.env.example` to `.env.local` and adjust if needed:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+cp .env.example .env.local
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Key variables:
+- `OLLAMA_BASE_URL`
+- `OLLAMA_EMBEDDING_MODEL`
+- `CHROMA_BASE_URL`
+- `CHROMA_COLLECTION`
+- `SQLITE_PATH`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Install and run
 
-## Deploy on Vercel
+```bash
+pnpm install
+pnpm dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Then open [http://localhost:4000](http://localhost:4000).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Database
+
+The app auto-bootstraps SQLite schema at runtime (`lib/server/db/bootstrap.ts`).
+
+Optional Drizzle commands:
+
+```bash
+pnpm db:generate
+pnpm db:push
+```
+
+## Important note
+
+This is a scaffold/skeleton:
+- Search indexes chunks and returns matches.
+- Notes/highlights persist to SQLite.
+- Reader tab is a placeholder for full page rendering + text selection mapping.
+- The UI is intentionally lean so feature work can layer on top.
