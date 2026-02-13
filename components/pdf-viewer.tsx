@@ -46,6 +46,21 @@ type SavedHighlight = {
   rects: SelectionRect[];
 };
 
+function isRenderCancelledError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const maybeError = error as { name?: string; message?: string };
+  const name = maybeError.name ?? "";
+  const message = maybeError.message ?? "";
+  return (
+    name.includes("RenderingCancelledException") ||
+    name.includes("AbortException") ||
+    message.includes("Rendering cancelled")
+  );
+}
+
 export function PdfViewer({
   sourceUrl,
   initialPage = 1,
@@ -70,6 +85,8 @@ export function PdfViewer({
   const [scale, setScale] = useState(1.2);
   const [singlePageMode, setSinglePageMode] = useState(true);
   const [pageNumber, setPageNumber] = useState(1);
+  const [renderCycle, setRenderCycle] = useState(0);
+  const selectionCaptureFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,8 +121,28 @@ export function PdfViewer({
     if (!focusPage || !pageCount) {
       return;
     }
-    setPageNumber(Math.max(1, Math.min(pageCount, focusPage)));
-  }, [focusPage, pageCount]);
+
+    const targetPage = Math.max(1, Math.min(pageCount, focusPage));
+    if (pageNumber !== targetPage) {
+      setPageNumber(targetPage);
+    }
+
+    if (singlePageMode) {
+      return;
+    }
+
+    const host = containerRef.current;
+    if (!host) {
+      return;
+    }
+
+    const target = host.querySelector(
+      `[data-page-number="${targetPage}"]`,
+    ) as HTMLElement | null;
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [focusPage, pageCount, pageNumber, renderCycle, singlePageMode]);
 
   const pagesToRender = useMemo(() => {
     if (!pdfDocument) {
@@ -137,59 +174,70 @@ export function PdfViewer({
         return;
       }
 
-      for (const currentPage of pagesToRender) {
-        const page = await currentPdf.getPage(currentPage);
-        if (cancelled) {
+      try {
+        for (const currentPage of pagesToRender) {
+          const page = await currentPdf.getPage(currentPage);
+          if (cancelled) {
+            return;
+          }
+
+          const viewport = page.getViewport({ scale });
+          const wrapper = document.createElement("div");
+          wrapper.dataset.pageNumber = String(currentPage);
+          wrapper.className = "relative mb-4 rounded border border-neutral-300 bg-white shadow";
+          wrapper.style.width = `${viewport.width}px`;
+          wrapper.style.height = `${viewport.height}px`;
+          wrapper.style.setProperty("--total-scale-factor", String(scale));
+
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.floor(viewport.width);
+          canvas.height = Math.floor(viewport.height);
+          canvas.style.width = `${viewport.width}px`;
+          canvas.style.height = `${viewport.height}px`;
+
+          wrapper.appendChild(canvas);
+
+          const textLayer = document.createElement("div");
+          textLayer.className = "pdf-text-layer absolute inset-0 select-text";
+          wrapper.appendChild(textLayer);
+
+          host.appendChild(wrapper);
+
+          const context = canvas.getContext("2d");
+          if (!context) {
+            continue;
+          }
+
+          const renderTask = page.render({ canvasContext: context, viewport });
+          renderTasks.push(renderTask);
+          await renderTask.promise;
+          if (cancelled) {
+            return;
+          }
+
+          const content = await page.getTextContent();
+          const pdfjs = pdfJsRef.current;
+          if (!pdfjs) {
+            continue;
+          }
+
+          const layer = new pdfjs.TextLayer({
+            textContentSource: content,
+            container: textLayer,
+            viewport,
+          });
+          textLayers.push(layer);
+          await layer.render();
+        }
+      } catch (error) {
+        if (cancelled || isRenderCancelledError(error)) {
           return;
         }
+        throw error;
+      }
 
-        const viewport = page.getViewport({ scale });
-        const wrapper = document.createElement("div");
-        wrapper.dataset.pageNumber = String(currentPage);
-        wrapper.className = "relative mb-4 rounded border border-neutral-300 bg-white shadow";
-        wrapper.style.width = `${viewport.width}px`;
-        wrapper.style.height = `${viewport.height}px`;
-        wrapper.style.setProperty("--total-scale-factor", String(scale));
-
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.floor(viewport.width);
-        canvas.height = Math.floor(viewport.height);
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
-
-        wrapper.appendChild(canvas);
-
-        const textLayer = document.createElement("div");
-        textLayer.className = "pdf-text-layer absolute inset-0 select-text";
-        wrapper.appendChild(textLayer);
-
-        host.appendChild(wrapper);
-
-        const context = canvas.getContext("2d");
-        if (!context) {
-          continue;
-        }
-
-        const renderTask = page.render({ canvasContext: context, viewport });
-        renderTasks.push(renderTask);
-        await renderTask.promise;
-        if (cancelled) {
-          return;
-        }
-
-        const content = await page.getTextContent();
-        const pdfjs = pdfJsRef.current;
-        if (!pdfjs) {
-          continue;
-        }
-
-        const layer = new pdfjs.TextLayer({
-          textContentSource: content,
-          container: textLayer,
-          viewport,
-        });
-        textLayers.push(layer);
-        await layer.render();
+      if (!cancelled) {
+        setRenderCycle((value) => value + 1);
       }
     }
 
@@ -248,33 +296,33 @@ export function PdfViewer({
 
       wrapper.appendChild(overlay);
     }
-  }, [activeHighlightId, highlights, pageNumber, pagesToRender, scale, singlePageMode]);
+  }, [activeHighlightId, highlights, pageNumber, pagesToRender, renderCycle, scale, singlePageMode]);
 
-  function intersectRangeWithNodeContents(sourceRange: Range, node: Node) {
-    const nodeRange = document.createRange();
-    nodeRange.selectNodeContents(node);
+  useEffect(() => {
+    return () => {
+      if (selectionCaptureFrameRef.current !== null) {
+        cancelAnimationFrame(selectionCaptureFrameRef.current);
+      }
+    };
+  }, []);
 
-    const noOverlap =
-      sourceRange.compareBoundaryPoints(Range.END_TO_START, nodeRange) <= 0 ||
-      sourceRange.compareBoundaryPoints(Range.START_TO_END, nodeRange) >= 0;
-    if (noOverlap) {
+  function findPageElementFromRange(range: Range) {
+    const host = containerRef.current;
+    if (!host) {
       return null;
     }
 
-    const overlap = document.createRange();
-    if (sourceRange.compareBoundaryPoints(Range.START_TO_START, nodeRange) <= 0) {
-      overlap.setStart(nodeRange.startContainer, nodeRange.startOffset);
-    } else {
-      overlap.setStart(sourceRange.startContainer, sourceRange.startOffset);
+    const candidateNodes = [range.commonAncestorContainer, range.startContainer, range.endContainer];
+    for (const node of candidateNodes) {
+      const element =
+        node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+      const pageElement = element?.closest("[data-page-number]") as HTMLElement | null;
+      if (pageElement && host.contains(pageElement)) {
+        return pageElement;
+      }
     }
 
-    if (sourceRange.compareBoundaryPoints(Range.END_TO_END, nodeRange) >= 0) {
-      overlap.setEnd(nodeRange.endContainer, nodeRange.endOffset);
-    } else {
-      overlap.setEnd(sourceRange.endContainer, sourceRange.endOffset);
-    }
-
-    return overlap;
+    return null;
   }
 
   function clampScale(nextScale: number) {
@@ -292,34 +340,31 @@ export function PdfViewer({
     }
 
     const range = selection.getRangeAt(0);
-    const baseNode = range.startContainer;
-    const element =
-      baseNode.nodeType === Node.ELEMENT_NODE
-        ? (baseNode as Element)
-        : baseNode.parentElement;
-
-    const pageElement = element?.closest("[data-page-number]") as HTMLElement | null;
+    const pageElement = findPageElementFromRange(range);
     if (!pageElement) {
       return;
     }
 
-    const textLayerElement = pageElement.querySelector(".pdf-text-layer");
+    const textLayerElement = pageElement.querySelector(".pdf-text-layer") as HTMLElement | null;
     if (!textLayerElement) {
       return;
     }
 
-    const pageOnlyRange = intersectRangeWithNodeContents(range, textLayerElement);
-    if (!pageOnlyRange) {
+    const pageContainsSelection =
+      textLayerElement.contains(range.startContainer) ||
+      textLayerElement.contains(range.endContainer) ||
+      textLayerElement.contains(range.commonAncestorContainer);
+    if (!pageContainsSelection) {
       return;
     }
 
-    const text = pageOnlyRange.toString().trim();
+    const text = selection.toString().trim();
     if (!text) {
       return;
     }
 
     const pageRect = pageElement.getBoundingClientRect();
-    const rects = Array.from(pageOnlyRange.getClientRects())
+    const rects = Array.from(range.getClientRects())
       .filter((rect) => {
         if (rect.width <= 0 || rect.height <= 0) {
           return false;
@@ -344,8 +389,23 @@ export function PdfViewer({
     });
   }
 
+  function scheduleCaptureSelection() {
+    if (selectionCaptureFrameRef.current !== null) {
+      cancelAnimationFrame(selectionCaptureFrameRef.current);
+    }
+
+    selectionCaptureFrameRef.current = requestAnimationFrame(() => {
+      selectionCaptureFrameRef.current = null;
+      captureSelection();
+    });
+  }
+
   return (
-    <div className="flex h-full min-h-0 flex-col space-y-3" onMouseUp={captureSelection}>
+    <div
+      className="flex h-full min-h-0 flex-col space-y-3"
+      onMouseUp={scheduleCaptureSelection}
+      onKeyUp={scheduleCaptureSelection}
+    >
       <div className="flex flex-wrap items-center gap-2 rounded border border-neutral-200 bg-white p-2">
         <Button
           type="button"

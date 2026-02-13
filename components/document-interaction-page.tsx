@@ -17,11 +17,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { DocumentDetailSnapshot } from "@/lib/types";
 
 const defaultActionState: ActionState = { ok: true, message: "" };
-const defaultNoteState: ActionState<{ noteId: string }> = { ok: true, message: "" };
+const defaultNoteState: ActionState<{ noteId: string }> = {
+  ok: true,
+  message: "",
+};
 
 type SelectionRect = { x: number; y: number; w: number; h: number };
 
@@ -61,7 +65,9 @@ export function DocumentInteractionPage({
   initialPage?: number;
 }) {
   const router = useRouter();
-  const [descriptionMd, setDescriptionMd] = useState(snapshot.document.descriptionMd);
+  const [descriptionMd, setDescriptionMd] = useState(
+    snapshot.document.descriptionMd,
+  );
   const [documentTags, setDocumentTags] = useState(snapshot.tags);
 
   const [notePage, setNotePage] = useState(initialPage);
@@ -72,14 +78,10 @@ export function DocumentInteractionPage({
   const [linkedDocumentIds, setLinkedDocumentIds] = useState<string[]>([]);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
 
-  const [descriptionState, descriptionAction, descriptionPending] = useActionState(
-    updateDocumentDescriptionAction,
-    defaultActionState,
-  );
-  const [documentTagState, documentTagAction, documentTagPending] = useActionState(
-    updateDocumentTagsAction,
-    defaultActionState,
-  );
+  const [descriptionState, descriptionAction, descriptionPending] =
+    useActionState(updateDocumentDescriptionAction, defaultActionState);
+  const [documentTagState, documentTagAction, documentTagPending] =
+    useActionState(updateDocumentTagsAction, defaultActionState);
   const [noteState, noteAction, notePending] = useActionState(
     createNoteFromSelectionAction,
     defaultNoteState,
@@ -123,7 +125,10 @@ export function DocumentInteractionPage({
     }
 
     const replacement = ` [${title}](doc://${documentId})`;
-    const updated = noteContentMd.replace(/(?:^|\s)@([a-zA-Z0-9_-]{1,60})$/, replacement);
+    const updated = noteContentMd.replace(
+      /(?:^|\s)@([a-zA-Z0-9_-]{1,60})$/,
+      replacement,
+    );
     setNoteContentMd(updated);
     setLinkedDocumentIds((current) => [...new Set([...current, documentId])]);
   }
@@ -140,18 +145,21 @@ export function DocumentInteractionPage({
     [snapshot.notes],
   );
 
-  const focusPage =
-    (activeNoteId ? snapshot.notes.find((note) => note.id === activeNoteId)?.page : undefined) ??
-    initialPage;
+  const focusPage = activeNoteId
+    ? snapshot.notes.find((note) => note.id === activeNoteId)?.page
+    : undefined;
 
   return (
     <main className="mx-auto grid h-[100dvh] max-w-7xl min-h-0 gap-4 overflow-hidden p-4 lg:grid-cols-[minmax(0,1fr)_360px]">
       <Card className="flex min-h-0 min-w-0 flex-col space-y-3 overflow-hidden">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold">{snapshot.document.title}</h1>
+            <h1 className="text-2xl font-semibold">
+              {snapshot.document.title}
+            </h1>
             <p className="text-sm text-neutral-600">
-              {snapshot.document.pageCount} pages, {snapshot.document.wordCount} words
+              {snapshot.document.pageCount} pages, {snapshot.document.wordCount}{" "}
+              words
             </p>
           </div>
           <Link href="/documents" className="text-sm underline">
@@ -177,7 +185,12 @@ export function DocumentInteractionPage({
         <Card className="space-y-3">
           <h2 className="text-lg font-semibold">Description (Markdown)</h2>
           <form action={descriptionAction} className="space-y-2">
-            <input name="documentId" type="hidden" value={snapshot.document.id} readOnly />
+            <input
+              name="documentId"
+              type="hidden"
+              value={snapshot.document.id}
+              readOnly
+            />
             <Textarea
               name="descriptionMd"
               value={descriptionMd}
@@ -189,7 +202,9 @@ export function DocumentInteractionPage({
             </Button>
           </form>
           {descriptionState.message ? (
-            <p className={`text-xs ${descriptionState.ok ? "text-neutral-600" : "text-red-700"}`}>
+            <p
+              className={`text-xs ${descriptionState.ok ? "text-neutral-600" : "text-red-700"}`}
+            >
               {descriptionState.message}
             </p>
           ) : null}
@@ -201,15 +216,31 @@ export function DocumentInteractionPage({
         <Card className="space-y-3">
           <h2 className="text-lg font-semibold">Document Tags</h2>
           <form action={documentTagAction} className="space-y-2">
-            <input name="documentId" type="hidden" value={snapshot.document.id} readOnly />
-            <TagInput value={documentTags} allTags={snapshot.allTags} onChange={setDocumentTags} />
-            <input name="tagsCsv" type="hidden" value={documentTags.join(",")} readOnly />
+            <input
+              name="documentId"
+              type="hidden"
+              value={snapshot.document.id}
+              readOnly
+            />
+            <TagInput
+              value={documentTags}
+              allTags={snapshot.allTags}
+              onChange={setDocumentTags}
+            />
+            <input
+              name="tagsCsv"
+              type="hidden"
+              value={documentTags.join(",")}
+              readOnly
+            />
             <Button type="submit" disabled={documentTagPending}>
               {documentTagPending ? "Saving..." : "Save Tags"}
             </Button>
           </form>
           {documentTagState.message ? (
-            <p className={`text-xs ${documentTagState.ok ? "text-neutral-600" : "text-red-700"}`}>
+            <p
+              className={`text-xs ${documentTagState.ok ? "text-neutral-600" : "text-red-700"}`}
+            >
               {documentTagState.message}
             </p>
           ) : null}
@@ -218,10 +249,42 @@ export function DocumentInteractionPage({
         <Card className="space-y-3">
           <h2 className="text-lg font-semibold">Note from Selection</h2>
           <form action={noteAction} className="space-y-2">
-            <input name="documentId" type="hidden" value={snapshot.document.id} readOnly />
-            <Input name="page" type="number" min={1} value={notePage} onChange={(e) => setNotePage(Number(e.currentTarget.value || 1))} />
-            <Textarea name="quote" value={noteQuote} onChange={(event) => setNoteQuote(event.currentTarget.value)} />
-            <input name="selectionRects" type="hidden" value={noteSelectionRects} readOnly />
+            <input
+              name="documentId"
+              type="hidden"
+              value={snapshot.document.id}
+              readOnly
+            />
+            <div className="space-y-1">
+              <Label htmlFor="note-page">Page number</Label>
+              <Input
+                id="note-page"
+                name="page"
+                type="number"
+                min={1}
+                value={notePage}
+                onChange={(e) =>
+                  setNotePage(Number(e.currentTarget.value || 1))
+                }
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="note-quote">Quoted text</Label>
+              <Textarea
+                id="note-quote"
+                name="quote"
+                value={noteQuote}
+                onChange={(event) => setNoteQuote(event.currentTarget.value)}
+                placeholder="Select text in the PDF to populate this field."
+              />
+            </div>
+            <input
+              name="selectionRects"
+              type="hidden"
+              value={noteSelectionRects}
+              readOnly
+            />
 
             <Textarea
               name="contentMd"
@@ -233,7 +296,9 @@ export function DocumentInteractionPage({
 
             {mentionMatches.length ? (
               <div className="rounded border border-neutral-200 bg-neutral-50 p-2">
-                <p className="mb-1 text-xs text-neutral-600">Mention suggestions</p>
+                <p className="mb-1 text-xs text-neutral-600">
+                  Mention suggestions
+                </p>
                 <div className="flex flex-wrap gap-1">
                   {mentionMatches.map((doc) => (
                     <button
@@ -255,8 +320,18 @@ export function DocumentInteractionPage({
               onChange={setNoteTags}
               placeholder="Note tags"
             />
-            <input name="tagsCsv" type="hidden" value={noteTags.join(",")} readOnly />
-            <input name="linkedDocumentIdsCsv" type="hidden" value={linkedDocumentIds.join(",")} readOnly />
+            <input
+              name="tagsCsv"
+              type="hidden"
+              value={noteTags.join(",")}
+              readOnly
+            />
+            <input
+              name="linkedDocumentIdsCsv"
+              type="hidden"
+              value={linkedDocumentIds.join(",")}
+              readOnly
+            />
 
             <Button type="submit" disabled={notePending}>
               {notePending ? "Saving..." : "Create Note"}
@@ -264,7 +339,9 @@ export function DocumentInteractionPage({
           </form>
 
           {noteState.message ? (
-            <p className={`text-xs ${noteState.ok ? "text-neutral-600" : "text-red-700"}`}>
+            <p
+              className={`text-xs ${noteState.ok ? "text-neutral-600" : "text-red-700"}`}
+            >
               {noteState.message}
             </p>
           ) : null}
@@ -286,10 +363,14 @@ export function DocumentInteractionPage({
                     size="sm"
                     variant={activeNoteId === note.id ? "default" : "outline"}
                     onClick={() =>
-                      setActiveNoteId((current) => (current === note.id ? null : note.id))
+                      setActiveNoteId((current) =>
+                        current === note.id ? null : note.id,
+                      )
                     }
                   >
-                    {activeNoteId === note.id ? "Hide Highlight" : "Show Highlight"}
+                    {activeNoteId === note.id
+                      ? "Hide Highlight"
+                      : "Show Highlight"}
                   </Button>
                 </div>
                 {note.quote ? (
@@ -297,7 +378,9 @@ export function DocumentInteractionPage({
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-900">
                       Highlighted text
                     </p>
-                    <p className="text-xs text-amber-950">&quot;{note.quote}&quot;</p>
+                    <p className="text-xs text-amber-950">
+                      &quot;{note.quote}&quot;
+                    </p>
                   </div>
                 ) : null}
                 <MarkdownPreview value={note.contentMd} />
@@ -309,7 +392,11 @@ export function DocumentInteractionPage({
                 {note.linkedDocuments.length ? (
                   <div className="mt-2 flex flex-wrap gap-2 text-xs">
                     {note.linkedDocuments.map((doc) => (
-                      <Link key={doc.id} href={`/documents/${doc.id}`} className="underline">
+                      <Link
+                        key={doc.id}
+                        href={`/documents/${doc.id}`}
+                        className="underline"
+                      >
                         {doc.title}
                       </Link>
                     ))}
