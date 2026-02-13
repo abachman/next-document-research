@@ -68,6 +68,7 @@ export function PdfViewer({
   highlights = [],
   activeHighlightId,
   onSelection,
+  onSelectionClear,
 }: {
   sourceUrl: string;
   initialPage?: number;
@@ -75,6 +76,7 @@ export function PdfViewer({
   highlights?: SavedHighlight[];
   activeHighlightId?: string;
   onSelection?: (payload: SelectionPayload) => void;
+  onSelectionClear?: () => void;
 }) {
   const MIN_SCALE = 0.5;
   const MAX_SCALE = 3.0;
@@ -306,6 +308,45 @@ export function PdfViewer({
     };
   }, []);
 
+  useEffect(() => {
+    function onWindowKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName.toLowerCase();
+        const isEditable = target.isContentEditable || target.closest("[contenteditable='true']");
+        if (tag === "input" || tag === "textarea" || tag === "select" || isEditable) {
+          return;
+        }
+      }
+
+      const key = event.key.toLowerCase();
+      if (key === "j") {
+        if (!pageCount) {
+          return;
+        }
+        event.preventDefault();
+        setPageNumber((value) => Math.min(pageCount, value + 1));
+        return;
+      }
+
+      if (key === "k") {
+        event.preventDefault();
+        setPageNumber((value) => Math.max(1, value - 1));
+      }
+    }
+
+    window.addEventListener("keydown", onWindowKeyDown);
+    return () => window.removeEventListener("keydown", onWindowKeyDown);
+  }, [pageCount]);
+
   function findPageElementFromRange(range: Range) {
     const host = containerRef.current;
     if (!host) {
@@ -330,23 +371,22 @@ export function PdfViewer({
   }
 
   function captureSelection() {
-    if (!onSelection) {
-      return;
-    }
-
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) {
+      onSelectionClear?.();
       return;
     }
 
     const range = selection.getRangeAt(0);
     const pageElement = findPageElementFromRange(range);
     if (!pageElement) {
+      onSelectionClear?.();
       return;
     }
 
     const textLayerElement = pageElement.querySelector(".pdf-text-layer") as HTMLElement | null;
     if (!textLayerElement) {
+      onSelectionClear?.();
       return;
     }
 
@@ -355,11 +395,13 @@ export function PdfViewer({
       textLayerElement.contains(range.endContainer) ||
       textLayerElement.contains(range.commonAncestorContainer);
     if (!pageContainsSelection) {
+      onSelectionClear?.();
       return;
     }
 
     const text = selection.toString().trim();
     if (!text) {
+      onSelectionClear?.();
       return;
     }
 
@@ -382,7 +424,12 @@ export function PdfViewer({
       }))
       .filter((rect) => rect.w > 0 && rect.h > 0 && rect.x < 1 && rect.y < 1);
 
-    onSelection({
+    if (!rects.length) {
+      onSelectionClear?.();
+      return;
+    }
+
+    onSelection?.({
       page: Number(pageElement.dataset.pageNumber),
       text,
       rects,

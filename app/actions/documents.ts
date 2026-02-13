@@ -25,7 +25,9 @@ import {
   documentPages,
   documentTags,
   documentText,
+  noteLinks,
   notes,
+  noteTags,
   tags,
 } from "@/lib/server/db/schema";
 import { ingestDocument } from "@/lib/server/indexer";
@@ -62,6 +64,11 @@ const noteSelectionSchema = z.object({
   contentMd: z.string().default(""),
   tagsCsv: z.string().default(""),
   linkedDocumentIdsCsv: z.string().default(""),
+});
+
+const deleteNoteSchema = z.object({
+  documentId: z.string().min(1),
+  noteId: z.string().min(1),
 });
 
 const searchSchema = z.object({
@@ -271,6 +278,40 @@ export async function createNoteFromSelectionAction(
     return {
       ok: false,
       message: error instanceof Error ? error.message : "Failed to save note.",
+    };
+  }
+}
+
+export async function deleteNoteAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const payload = deleteNoteSchema.parse({
+      documentId: formData.get("documentId"),
+      noteId: formData.get("noteId"),
+    });
+
+    const existing = await db
+      .select({ id: notes.id })
+      .from(notes)
+      .where(eq(notes.id, payload.noteId))
+      .limit(1);
+    if (!existing.length) {
+      return { ok: false, message: "Note not found." };
+    }
+
+    await db.delete(noteTags).where(eq(noteTags.noteId, payload.noteId));
+    await db.delete(noteLinks).where(eq(noteLinks.noteId, payload.noteId));
+    await db.delete(notes).where(eq(notes.id, payload.noteId));
+
+    revalidatePath("/documents");
+    revalidatePath(`/documents/${payload.documentId}`);
+    return { ok: true, message: "Note deleted." };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Failed to delete note.",
     };
   }
 }
