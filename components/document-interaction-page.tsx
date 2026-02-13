@@ -192,11 +192,17 @@ export function DocumentInteractionPage({
   const deletingNotes = deleteNotePending;
 
   return (
-    <main className="relative mx-auto flex h-[100dvh] max-w-7xl min-h-0 gap-4 overflow-hidden p-4">
+    <main
+      className={`relative mx-auto grid h-[100dvh] w-full gap-4 overflow-hidden p-4 ${
+        isSidebarOpen
+          ? "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]"
+          : "grid-cols-1"
+      }`}
+    >
       <Button
         type="button"
         size="sm"
-        className="fixed right-2 top-1/2 z-40 -translate-y-1/2 shadow lg:right-4"
+        className="absolute right-4 top-4 z-40 shadow"
         onClick={() => setIsSidebarOpen((value) => !value)}
       >
         {isSidebarOpen ? (
@@ -213,9 +219,12 @@ export function DocumentInteractionPage({
       <Card className="flex min-h-0 min-w-0 flex-1 flex-col space-y-3 overflow-hidden">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold">{snapshot.document.title}</h1>
+            <h1 className="text-2xl font-semibold">
+              {snapshot.document.title}
+            </h1>
             <p className="text-sm text-neutral-600">
-              {snapshot.document.pageCount} pages, {snapshot.document.wordCount} words
+              {snapshot.document.pageCount} pages, {snapshot.document.wordCount}{" "}
+              words
             </p>
           </div>
           <Link href="/documents" className="text-sm underline">
@@ -243,8 +252,8 @@ export function DocumentInteractionPage({
       </Card>
 
       {isSidebarOpen ? (
-        <aside className="fixed inset-y-0 right-0 z-30 w-[min(92vw,380px)] border-l border-neutral-200 bg-white/95 p-4 pt-16 shadow-xl backdrop-blur-sm lg:static lg:inset-auto lg:w-[360px] lg:min-h-0 lg:overflow-y-auto lg:border lg:pt-0 lg:shadow-none lg:backdrop-blur-0">
-          <div className="space-y-4 lg:pr-1">
+        <aside className="min-h-0 w-full overflow-y-auto border border-neutral-200 bg-white p-4 pt-16 lg:w-[360px]">
+          <div className="space-y-4">
             <Card className="space-y-3 p-3">
               <h2 className="text-lg font-semibold">Description</h2>
 
@@ -259,7 +268,9 @@ export function DocumentInteractionPage({
                   <Textarea
                     name="descriptionMd"
                     value={descriptionMd}
-                    onChange={(event) => setDescriptionMd(event.currentTarget.value)}
+                    onChange={(event) =>
+                      setDescriptionMd(event.currentTarget.value)
+                    }
                     rows={8}
                   />
                   <div className="flex gap-2">
@@ -286,7 +297,10 @@ export function DocumentInteractionPage({
                   <MarkdownPreview value={descriptionMd} />
                 </button>
               ) : (
-                <Button type="button" onClick={() => setIsDescriptionEditing(true)}>
+                <Button
+                  type="button"
+                  onClick={() => setIsDescriptionEditing(true)}
+                >
                   Add a description
                 </Button>
               )}
@@ -494,7 +508,9 @@ export function DocumentInteractionPage({
                     }`}
                   >
                     <div className="mb-1 flex items-center justify-between gap-2">
-                      <p className="text-xs text-neutral-500">Page {note.page}</p>
+                      <p className="text-xs text-neutral-500">
+                        Page {note.page}
+                      </p>
                       <div className="flex items-center gap-2">
                         <Button
                           type="button"
@@ -516,9 +532,7 @@ export function DocumentInteractionPage({
                           action={deleteNoteActionState}
                           onSubmit={(event) => {
                             if (
-                              !window.confirm(
-                                "Delete this note permanently?",
-                              )
+                              !window.confirm("Delete this note permanently?")
                             ) {
                               event.preventDefault();
                               return;
