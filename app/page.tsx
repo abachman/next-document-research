@@ -1,11 +1,5 @@
-import { Workspace } from "@/components/workspace";
-import { getWorkspaceSnapshot } from "@/lib/server/workspace";
+import { redirect } from "next/navigation";
 
-export default async function Home() {
-  const snapshot = await getWorkspaceSnapshot();
-  return (
-    <main>
-      <Workspace initialSnapshot={snapshot} />
-    </main>
-  );
+export default function HomePage() {
+  redirect("/documents");
 }
