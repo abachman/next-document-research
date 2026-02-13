@@ -134,6 +134,7 @@ export async function getDocumentDetailSnapshot(
     page: row.page,
     quote: row.quote,
     contentMd: row.contentMd,
+    selectionRectsJson: row.selectionRectsJson,
     tags: (noteTagsByNote.get(row.id) ?? []).sort(),
     linkedDocuments: noteLinksByNote.get(row.id) ?? [],
     createdAt: row.createdAt,

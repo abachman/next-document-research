@@ -73,6 +73,7 @@ export type NoteDetail = {
   page: number;
   quote: string;
   contentMd: string;
+  selectionRectsJson: string;
   tags: string[];
   linkedDocuments: Array<{ id: string; title: string }>;
   createdAt: number;
